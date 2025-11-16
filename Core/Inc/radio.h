@@ -2,9 +2,7 @@
 
 #include "FreeRTOS.h"
 #include "semphr.h"
-#include "queue.h"
 #include "main.h"
-#include "ui_feedback.h"
 
 // --- C-Обгортки ---
 #ifdef __cplusplus
@@ -34,8 +32,7 @@ extern SemaphoreHandle_t g_radio_irq_sem;
 #ifdef __cplusplus
 
 /**
- * @brief Main class for managing the nRF24L01 Radio.
- * Encapsulates all RTOS logic for non-blocking communication.
+ * @brief Main class for managing the nRF24L01 Radio (Receiver).
  */
 class MyRadio
 {
@@ -50,21 +47,14 @@ public:
      */
     void task(void);
 
-    /**
-     * @brief Public API for other tasks to send data.
-     * @param data 32-byte buffer to send.
-     * @return true if successfully queued for sending.
-     */
-    bool send_data(uint8_t* data);
-
 private:
     /**
      * @brief Initializes the nRF24L01 controller.
      * @return true if successful, false otherwise.
      */
     bool init(void);
-    // --- Class State ---
-    QueueHandle_t tx_queue;
+
+    // tx_queue and send_data() видалені, оскільки це приймач
 };
 
 #endif // __cplusplus

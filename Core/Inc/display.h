@@ -52,11 +52,7 @@ public:
      */
     void task(void);
 
-    /**
-     * @brief Public API for the keypad task to report a key press.
-     * @param key The character that was pressed.
-     */
-    void on_key_press(char key);
+    void set_main_text(const char* text);
     /**
          * @brief Public API to set the top-left status bar text.
          * @param text The new string to display.
@@ -76,7 +72,7 @@ private:
 
     // --- Class State ---
     I2C_HandleTypeDef *hi2c;    // I2C handle
-    char current_key;           // The last key pressed ('\0' = none)
+    char main_text[33];           // The last key pressed ('\0' = none)
     bool needs_update;          // Flag to trigger a screen redraw
     char status_text[24];
 };

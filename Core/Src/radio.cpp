@@ -1,44 +1,28 @@
 #include "radio.h"
-#include "nrf24l01p.h" // Include the low-level driver
+#include "nrf24l01p.h" // Правильний драйвер
 #include "FreeRTOS.h"
 #include "task.h"
-#include <string.h> // For memcpy
+#include <string.h>
 #include "display.h"
 #include <stdio.h>
 #include "ui_feedback.h"
 
 // --- Global Objects ---
+SemaphoreHandle_t g_radio_irq_sem; // Семафор для IRQ
+MyRadio g_radio;                   // Глобальний об'єкт радіо
+extern MyDisplay g_display;        // Глобальний об'єкт дисплея
 
-/**
- * @brief Global semaphore, signaled by the nRF24L01 IRQ pin.
- */
-SemaphoreHandle_t g_radio_irq_sem;
-
-/**
- * @brief Global instance of our C++ radio class.
- */
-MyRadio g_radio;
-extern MyDisplay g_display;
-// --- Pipe Addresses ---
-// (Must be the same on transmitter and receiver)
 uint8_t TX_ADDRESS[5] = {0xEE, 0xDD, 0xCC, 0xBB, 0xAA};
 uint8_t RX_ADDRESS[5] = {0xEE, 0xDD, 0xCC, 0xBB, 0xAA};
-uint8_t radio_tx_buffer[32];
+
 // --- C-Wrappers (Entry Point) ---
 extern "C" {
 
-/**
- * @brief C-callable function to initialize the radio subsystem.
- */
 void radio_init(void)
 {
-    // Create the binary semaphore for IRQ
     g_radio_irq_sem = xSemaphoreCreateBinary();
 }
 
-/**
- * @brief RTOS task entry function.
- */
 void radio_task_entry(void *argument)
 {
     g_radio.task();
@@ -50,80 +34,69 @@ void radio_task_entry(void *argument)
 
 MyRadio::MyRadio()
 {
-	this->tx_queue = xQueueCreate(1, 0);
+    // Конструктор. Черга tx_queue не потрібна.
 }
 
 /**
- * @brief Private method to initialize the nRF24.
+ * @brief Ініціалізація nRF24 як Приймача (RX)
  */
 bool MyRadio::init(void)
 {
-	nrf24l01p_rx_init(106, _1Mbps);
-	return true;
+    // Викликаємо ініціалізацію для RX
+    nrf24l01p_rx_init(106, _1Mbps);
+    nrf24l01p_set_rx_address_p0(RX_ADDRESS);
+	nrf24l01p_set_tx_address(RX_ADDRESS);
+    return true;
 }
 
 /**
- * @brief Public API for other tasks to send data.
- */
-bool MyRadio::send_data(uint8_t* data)
-{
-	memcpy(radio_tx_buffer, data, 32);
-	if (xQueueSend(this->tx_queue, NULL, 0) == pdTRUE) {
-	        return true;
-	    }
-	return false;
-}
-
-/**
- * @brief MAIN RADIO TASK LOOP
- */
-/**
- * @brief MAIN RADIO TASK LOOP
+ * @brief Головна задача радіо (тільки Приймач)
  */
 void MyRadio::task(void)
 {
+    // 1. Оголошуємо буфер ЗРАЗУ на початку функції
+    uint8_t rx_buf[NRF24L01P_PAYLOAD_LENGTH];
+    memset(rx_buf, 0, NRF24L01P_PAYLOAD_LENGTH); // Очищуємо "сміття" з пам'яті
+
     if (!this->init()) {
+        g_display.set_status_text("Radio Fail!");
         vTaskDelete(NULL);
     }
 
-    uint8_t rx_buf[NRF24L01P_PAYLOAD_LENGTH];
+    // 2. Встановлюємо початковий СТАТУС (один раз)
+    // Він не буде змінюватись
+    g_display.set_status_text("Listening...");
+    g_display.set_main_text(""); // Очищуємо головну зону
+
+    // nrf24l01p_rx_init вже встановив CE HIGH, модуль слухає ефір
 
     while(1)
     {
-        // --- 1. Перевіряємо, чи є нова робота (з черги) ---
-        if (xQueueReceive(this->tx_queue, NULL, 0) == pdTRUE)
+        // Чекаємо на IRQ (отримання даних)
+        if (xSemaphoreTake(g_radio_irq_sem, portMAX_DELAY) == pdTRUE)
         {
-            // Переходимо в TX режим
-            nrf24l01p_ptx_mode();
+            // IRQ спрацював
+            uint8_t status = nrf24l01p_get_status();
 
-            // Відправляємо дані (використовуємо нову функцію)
-            nrf24l01p_tx_transmit(radio_tx_buffer);
-            HAL_GPIO_WritePin(NRF24L01P_CE_PIN_PORT, NRF24L01P_CE_PIN_NUMBER, GPIO_PIN_SET);
-                        vTaskDelay(pdMS_TO_TICKS(1)); // (Короткий імпульс в 1мс)
-                        HAL_GPIO_WritePin(NRF24L01P_CE_PIN_PORT, NRF24L01P_CE_PIN_NUMBER, GPIO_PIN_RESET);
-            // (Ми будемо чекати на IRQ, щоб підтвердити відправку)
-            xSemaphoreTake(g_radio_irq_sem, pdMS_TO_TICKS(100));
+            if (status & (1 << 6)) // Перевірка прапора RX_DR
+            {
+                UI_Blink_Triple(); // Блимаємо діодом
 
-            // Очищуємо IRQ (TX_DS або MAX_RT)
-            nrf24l01p_tx_irq();
+                // Отримано дані
+                nrf24l01p_rx_receive(rx_buf);
+                rx_buf[NRF24L01P_PAYLOAD_LENGTH - 1] = '\0'; // Гарантуємо нуль-термінатор
 
-            // Повертаємося в RX режим
-            nrf24l01p_prx_mode();
-            HAL_GPIO_WritePin(NRF24L01P_CE_PIN_PORT, NRF24L01P_CE_PIN_NUMBER, GPIO_PIN_SET); // (Знову починаємо слухати)
+                // 3. ОНОВЛЮЄМО ТІЛЬКИ ГОЛОВНУ ЗОНУ
+                // Статус "Listening..." залишається вгорі
+                g_display.set_main_text((char*)rx_buf); // Дані в центрі
+            }
+            else
+            {
+                // Скидаємо інші прапори
+                nrf24l01p_clear_rx_dr();
+                nrf24l01p_clear_tx_ds();
+                nrf24l01p_clear_max_rt();
+            }
         }
-
-        // --- 2. Перевіряємо, чи нас не розбудив IRQ (отримання даних) ---
-        if (xSemaphoreTake(g_radio_irq_sem, 0) == pdTRUE)
-        {
-        	UI_Blink_Triple();
-            // Отримано дані
-            nrf24l01p_rx_receive(rx_buf);
-
-            char status_str[37];
-            snprintf(status_str, sizeof(status_str), "RX: %s", (char*)rx_buf);
-            g_display.set_status_text(status_str);
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }

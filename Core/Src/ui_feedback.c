@@ -14,7 +14,7 @@ static void UI_Blink_Start(void)
 {
   // Turn ON the LED (set pin to '0' for Blue Pill)
   // NOTE: This will fail to compile if 'LED_BUILTIN' is not a User Label for PC13
-  HAL_GPIO_WritePin(LED_BUILTIN_GPIO_Port, LED_BUILTIN_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LED_BUILTIN_GPIO_Port, LED_BUILTIN_Pin, GPIO_PIN_SET);
 }
 
 /**
@@ -23,7 +23,7 @@ static void UI_Blink_Start(void)
 static void UI_Blink_End(void)
 {
     // Turn OFF the LED (set pin to '1' for Blue Pill)
-    HAL_GPIO_WritePin(LED_BUILTIN_GPIO_Port, LED_BUILTIN_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(LED_BUILTIN_GPIO_Port, LED_BUILTIN_Pin, GPIO_PIN_RESET);
 }
 
 /**
