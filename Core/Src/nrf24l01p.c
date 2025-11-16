@@ -134,14 +134,12 @@ void nrf24l01p_tx_irq()
     if(tx_ds)
     {
         // TX_DS
-        HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
         nrf24l01p_clear_tx_ds();
     }
 
     else
     {
         // MAX_RT
-        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, SET);
         nrf24l01p_clear_max_rt();
     }
 }
