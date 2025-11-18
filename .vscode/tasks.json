@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "🚀 FLASH (CLI)",
+            "type": "shell",
+            "command": "C:\\ST\\STM32CubeCLT_1.19.0\\STM32CubeProgrammer\\bin\\STM32_Programmer_CLI.exe",
+            "args": [
+                "-c", "port=SWD",
+                "-w", "${workspaceFolder}/build/Debug/lb3_Receiver.elf", 
+                "-v", 
+                "-rst"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": []
+        }
+    ]
+}

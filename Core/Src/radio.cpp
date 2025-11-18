@@ -65,7 +65,7 @@ void MyRadio::task(void)
 
     // 2. Встановлюємо початковий СТАТУС (один раз)
     // Він не буде змінюватись
-    g_display.set_status_text("Listening...");
+    g_display.set_status_text("Rx...");
     g_display.set_main_text(""); // Очищуємо головну зону
 
     // nrf24l01p_rx_init вже встановив CE HIGH, модуль слухає ефір
