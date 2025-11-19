@@ -25,8 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "display.h"
-#include "radio.h"
+#include "rtos_tasks.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,12 +47,51 @@
 /* USER CODE BEGIN Variables */
 
 /* USER CODE END Variables */
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
-  .stack_size = 128 * 4,
+/* Definitions for radio_task */
+osThreadId_t radio_taskHandle;
+const osThreadAttr_t radio_task_attributes = {
+  .name = "radio_task",
+  .stack_size = 160 * 4,
   .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for display_task */
+osThreadId_t display_taskHandle;
+const osThreadAttr_t display_task_attributes = {
+  .name = "display_task",
+  .stack_size = 192 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for logic_task */
+osThreadId_t logic_taskHandle;
+const osThreadAttr_t logic_task_attributes = {
+  .name = "logic_task",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for displayQueueHandle */
+osMessageQueueId_t displayQueueHandleHandle;
+const osMessageQueueAttr_t displayQueueHandle_attributes = {
+  .name = "displayQueueHandle"
+};
+/* Definitions for radioToLogicQueue */
+osMessageQueueId_t radioToLogicQueueHandle;
+const osMessageQueueAttr_t radioToLogicQueue_attributes = {
+  .name = "radioToLogicQueue"
+};
+/* Definitions for i2cMutex */
+osMutexId_t i2cMutexHandle;
+const osMutexAttr_t i2cMutex_attributes = {
+  .name = "i2cMutex"
+};
+/* Definitions for radioIrqSem */
+osSemaphoreId_t radioIrqSemHandle;
+const osSemaphoreAttr_t radioIrqSem_attributes = {
+  .name = "radioIrqSem"
+};
+/* Definitions for i2cTxDoneSem */
+osSemaphoreId_t i2cTxDoneSemHandle;
+const osSemaphoreAttr_t i2cTxDoneSem_attributes = {
+  .name = "i2cTxDoneSem"
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -61,7 +99,9 @@ const osThreadAttr_t defaultTask_attributes = {
 
 /* USER CODE END FunctionPrototypes */
 
-void StartDefaultTask(void *argument);
+void radio_task_entry(void *argument);
+void display_task_entry(void *argument);
+void logic_task_entry(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -75,10 +115,20 @@ void MX_FREERTOS_Init(void) {
 	display_init();
 	radio_init();
   /* USER CODE END Init */
+  /* Create the mutex(es) */
+  /* creation of i2cMutex */
+  i2cMutexHandle = osMutexNew(&i2cMutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
+
+  /* Create the semaphores(s) */
+  /* creation of radioIrqSem */
+  radioIrqSemHandle = osSemaphoreNew(1, 1, &radioIrqSem_attributes);
+
+  /* creation of i2cTxDoneSem */
+  i2cTxDoneSemHandle = osSemaphoreNew(1, 1, &i2cTxDoneSem_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -88,28 +138,29 @@ void MX_FREERTOS_Init(void) {
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
+  /* Create the queue(s) */
+  /* creation of displayQueueHandle */
+  displayQueueHandleHandle = osMessageQueueNew (4, 40, &displayQueueHandle_attributes);
+
+  /* creation of radioToLogicQueue */
+  radioToLogicQueueHandle = osMessageQueueNew (4, 32, &radioToLogicQueue_attributes);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  /* creation of radio_task */
+  radio_taskHandle = osThreadNew(radio_task_entry, NULL, &radio_task_attributes);
+
+  /* creation of display_task */
+  display_taskHandle = osThreadNew(display_task_entry, NULL, &display_task_attributes);
+
+  /* creation of logic_task */
+  logic_taskHandle = osThreadNew(logic_task_entry, NULL, &logic_task_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  xTaskCreate(display_task_entry,
-                "DisplayTask",
-                256,
-                NULL,
-                osPriorityNormal,
-                NULL);
-
-    xTaskCreate(radio_task_entry,
-                "RadioTask",
-                256,
-                NULL,
-                osPriorityNormal,
-                NULL);
+ 
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -118,22 +169,50 @@ void MX_FREERTOS_Init(void) {
 
 }
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_radio_task_entry */
 /**
-  * @brief  Function implementing the defaultTask thread.
+  * @brief  Function implementing the radio_task thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
+/* USER CODE END Header_radio_task_entry */
+void radio_task_entry(void *argument)
 {
-  /* USER CODE BEGIN StartDefaultTask */
+  /* USER CODE BEGIN radio_task_entry */
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartDefaultTask */
+  radio_run_task();
+  /* USER CODE END radio_task_entry */
+}
+
+/* USER CODE BEGIN Header_display_task_entry */
+/**
+* @brief Function implementing the display_task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_display_task_entry */
+void display_task_entry(void *argument)
+{
+  /* USER CODE BEGIN display_task_entry */
+  /* Infinite loop */
+  display_run_task();
+  /* USER CODE END display_task_entry */
+}
+
+/* USER CODE BEGIN Header_logic_task_entry */
+/**
+* @brief Function implementing the logic_task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_logic_task_entry */
+void logic_task_entry(void *argument)
+{
+  /* USER CODE BEGIN logic_task_entry */
+  /* Infinite loop */
+  logic_run_task();
+  vTaskDelete(NULL);
+  /* USER CODE END logic_task_entry */
 }
 
 /* Private application code --------------------------------------------------*/

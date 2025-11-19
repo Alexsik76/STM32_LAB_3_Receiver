@@ -26,7 +26,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "display.h"
+#include "rtos_tasks.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -167,12 +167,10 @@ void SystemClock_Config(void)
   */
 void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
-  if (hi2c->Instance == I2C1)
+  if (hi2c->Instance == hi2c1.Instance)
   {
     // Give the semaphore to unblock the display_task
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    xSemaphoreGiveFromISR(g_i2c_tx_done_sem, &xHigherPriorityTaskWoken);
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+	  osSemaphoreRelease(i2cTxDoneSemHandle);
   }
 }
 
@@ -181,22 +179,22 @@ void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c)
   */
 void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 {
-  if (hi2c->Instance == I2C1)
+  if (hi2c->Instance == hi2c1.Instance)
   {
-    // 1. Manually reset the HAL state to un-lock the driver
+    // 1. Manually reset the HAL state to HAL_I2C_STATE_READY.
+    // This is our "elegant fix" to clear the HAL_BUSY state.
     hi2c->State = HAL_I2C_STATE_READY;
 
-    // 2. Also give the semaphore to unblock the display_task
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    xSemaphoreGiveFromISR(g_i2c_tx_done_sem, &xHigherPriorityTaskWoken);
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    // 2. Also give the semaphore to unblock the display_task,
+    //    so it doesn't get stuck on xSemaphoreTake().
+    osSemaphoreRelease(i2cTxDoneSemHandle);
   }
 }
 /* USER CODE END 4 */
 
 /**
   * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM11 interrupt took place, inside
+  * @note   This function is called  when TIM1 interrupt took place, inside
   * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
   * a global variable "uwTick" used as application time base.
   * @param  htim : TIM handle
@@ -207,7 +205,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM11)
+  if (htim->Instance == TIM1)
   {
     HAL_IncTick();
   }

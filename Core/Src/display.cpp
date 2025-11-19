@@ -1,158 +1,183 @@
-#include "display.h"
+#include "display.hpp"
+#include "display_protocol.hpp"
+#include "rtos_tasks.h"
+#include "cmsis_os.h"
+#include <string.h>
+#include <stdio.h>
 #include "ssd1306.h"
-#include <stdio.h> // For snprintf
-#include <cstring>
-// --- Global Objects ---
+#include "fonts.h"
 
-/**
- * @brief Global semaphore, signaled by I2C/DMA interrupts (defined in display.cpp).
- * It is declared 'extern' in display.h to be visible by main.c
- */
-SemaphoreHandle_t g_i2c_tx_done_sem;
-
-/**
- * @brief Global instance of our C++ display class.
- * @note This relies on hi2c1 being globally defined in i2c.h (which is included via ssd1306.h)
- */
+// --- Глобальні об'єкти ---
+extern I2C_HandleTypeDef hi2c1;
 MyDisplay g_display(&hi2c1);
 
-// --- C-Wrappers (Entry Point) ---
+// =============================================================================
+// ЦЕЙ БЛОК (extern "C") - ЄДИНЕ МІСЦЕ, ЯКЕ ВІДРІЗНЯЄТЬСЯ НА TX І RX
+// =============================================================================
 extern "C" {
 
-/**
- * @brief C-callable function to initialize the display subsystem.
- * @note Called once from main.c before the RTOS scheduler starts.
- */
-void display_init(void)
-{
-    // Create the binary semaphore (it starts "empty")
-    g_i2c_tx_done_sem = xSemaphoreCreateBinary();
-}
 
-/**
- * @brief RTOS task entry function.
- * @note Called by freertos.c to start the display task.
- */
-void display_task_entry(void *argument)
-{
-    // Pass control to our C++ object's main task method
+extern osMessageQueueId_t displayQueueHandleHandle;
+extern osSemaphoreId_t i2cTxDoneSemHandle; 
+
+
+
+void display_run_task(void) {
+   
+    g_display.setup(displayQueueHandleHandle, i2cTxDoneSemHandle);
+    
+    
     g_display.task();
 }
 
+void display_init(void) {
+   
+}
+
 } // extern "C"
+// =============================================================================
 
-// --- C++ Class Implementation ---
 
-/**
- * @brief Constructor for MyDisplay class.
- */
+// --- C++ Implementation 
+
 MyDisplay::MyDisplay(I2C_HandleTypeDef *hi2c)
 {
-    // Initialize private member variables
     this->hi2c = hi2c;
-    this->main_text[0] = '\0';      // '\0' means no key is active
-    this->needs_update = true;  // Force a screen update on the first run
-    // Initialize the status text buffer
-    strncpy(this->status_text, "Press a key", sizeof(this->status_text) - 1);
+    this->current_key = 0;
+    this->queueHandle = NULL; // Захист від дурня
+    this->i2cSemHandle = NULL;
+    memset(this->main_text, 0, sizeof(this->main_text));
+    memset(this->status_text, 0, sizeof(this->status_text));
+    strncpy(this->status_text, "Boot...", sizeof(this->status_text) - 1);
 }
 
-/**
- * @brief Private method to initialize the SSD1306 controller.
- */
-bool MyDisplay::init(void)
+// Реалізація методу setup
+void MyDisplay::setup(osMessageQueueId_t queue, osSemaphoreId_t i2c_sem)
 {
-    // Wait for the display to power on and stabilize
-    vTaskDelay(pdMS_TO_TICKS(100));
-    return ssd1306_Init();
+    this->queueHandle = queue;
+    this->i2cSemHandle = i2c_sem;
 }
 
-void MyDisplay::set_main_text(const char* text)
+bool MyDisplay::init()
 {
-    // Копіюємо новий текст у наш буфер для великої зони
-    strncpy(this->main_text, text, sizeof(this->main_text) - 1);
-    this->main_text[sizeof(this->main_text) - 1] = '\0'; // Гарантуємо нуль-термінатор
-
-    this->needs_update = true; // Потрібно оновити екран
-}
-/**
- * @brief Public API to set the top-left status bar text.
- */
-void MyDisplay::set_status_text(const char* text)
-{
-    // Copy the new text into our buffer
-    strncpy(this->status_text, text, sizeof(this->status_text) - 1);
-    this->status_text[sizeof(this->status_text) - 1] = '\0'; // Ensure null termination
-
-    this->needs_update = true; // Trigger a screen redraw
+    osDelay(100);
+    return ssd1306_Init() == 0;
 }
 
-/**
- * @brief Private method to render the buffer and send it to the display via DMA.
- */
-/**
- * @brief Renders the 2-zone UI to the buffer and sends it via DMA.
- */
-void MyDisplay::update_screen(void)
-{
-    // 1. Clear the entire buffer
-    ssd1306_Fill(Black);
-
-    // --- Zone 1: Status Bar (Top 16 pixels) ---
-
-    // Set cursor to the top-left for the status text
-    ssd1306_SetCursor(0, 0);
-
-    ssd1306_WriteString(this->status_text, &Font_6x8, White);
-
-    // (We will reserve the top-right corner for radio icons later)
-    // ssd1306_SetCursor(112, 0);
-    // ssd1306_WriteString("[SND]", &Font_6x8, White);
-
-
-    // --- Zone 2: Main Area (Bottom 48 pixels) ---
-
-    if (this->main_text[0] != '\0') {
-
-        ssd1306_SetCursor(2, 31);
-
-        ssd1306_WriteString_Large(this->main_text, &Font_11x18, White);
-    }
-
-    // 4. Start the non-blocking DMA transfer
-    ssd1306_UpdateScreenDMA();
-
-    // 5. Wait for the transfer to complete.
-    xSemaphoreTake(g_i2c_tx_done_sem, pdMS_TO_TICKS(100));
-
-    // 6. Clear the flag
-    this->needs_update = false;
-}
-
-/**
- * @brief The main, infinite loop for the display RTOS task.
- */
 void MyDisplay::task(void)
 {
-    // 1. Turn off the onboard LED (PC13)
-    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-
-    // Initialize the display
-    if (!this->init()) {
-        vTaskDelete(NULL); // Initialization failed, kill the task
+    // Перевірка, чи викликали setup
+    if (this->queueHandle == NULL) {
+        vTaskDelete(NULL);
     }
 
-    // Main task loop
+    if (!this->init()) {
+    }
+
+    DisplayMessage_t msg; 
+    this->set_status_text("Booting...");
+    this->update_screen_internal();
+    osDelay(500);
+    this->set_status_text("Ready");
+    this->set_main_text(""); // Очищуємо центр
+    this->update_screen_internal();
     while (1)
     {
-        // We no longer read the keypad here.
-        // We only check if the keypad task has "told" us to redraw.
-        if (this->needs_update)
+        // Використовуємо переданий хендл this->queueHandle замість глобального
+        if (osMessageQueueGet(this->queueHandle, &msg, NULL, osWaitForever) == osOK)
         {
-            this->update_screen();
-        }
+            bool needs_redraw = false;
 
-        // Sleep to yield CPU time.
-        // The display will only update as fast as the keypad sends events.
-        vTaskDelay(pdMS_TO_TICKS(50));
+            switch (msg.command)
+            {
+                case DISP_CMD_SET_STATUS:
+                    this->set_status_text(msg.text);
+                    needs_redraw = true;
+                    break;
+
+                case DISP_CMD_SET_MAIN_TEXT:
+                    this->set_main_text(msg.text);
+                    this->current_key = 0;
+                    needs_redraw = true;
+                    break;
+                    
+                case DISP_CMD_SHOW_KEY:
+                     this->on_key_press(msg.key);
+                     this->set_main_text(""); 
+                     needs_redraw = true;
+                     break;
+
+                case DISP_CMD_CLEAR:
+                     this->clear_all();
+                     needs_redraw = true;
+                     break;
+            }
+            if (needs_redraw) {
+                this->update_screen_internal();
+            }
+        }
     }
+}
+
+
+void MyDisplay::update_screen_internal()
+{
+    ssd1306_Fill(Black);
+
+    // 1. Статус бар (дрібний шрифт 6x8)
+    // Тут використовуємо звичайний WriteString
+    if (this->status_text[0] != '\0') {
+        ssd1306_SetCursor(0, 0);
+        ssd1306_WriteString(this->status_text, (FontDef_8bit_t*)&Font_6x8, White);
+    }
+
+    // 2. Головний текст (ВЕЛИКИЙ шрифт 11x18)
+    // Тут використовуємо WriteString_Large
+    if (this->main_text[0] != '\0') 
+    {
+        // Центруємо для шрифту шириною 11 пікселів
+        int len = strlen(this->main_text);
+        int px_width = len * 11; 
+        
+        int x_pos = (128 - px_width) / 2;
+        if (x_pos < 0) x_pos = 0;
+
+        ssd1306_SetCursor(x_pos, 20);
+        
+        // ВИКЛИКАЄМО ПРАВИЛЬНУ ФУНКЦІЮ БЕЗ КАСТИНГУ!
+        ssd1306_WriteString_Large(this->main_text, &Font_11x18, White);
+    }
+    else if (this->current_key != 0) 
+    {
+        // Одна літера по центру
+        ssd1306_SetCursor(54, 20); 
+        char str[2] = {this->current_key, '\0'};
+        
+        ssd1306_WriteString_Large(str, &Font_11x18, White); 
+    }
+
+    // 3. DMA Update
+    ssd1306_UpdateScreenDMA();
+    
+    if (this->i2cSemHandle != NULL) {
+        osSemaphoreAcquire(this->i2cSemHandle, 100);
+    } else {
+        osDelay(10);
+    }
+}
+
+void MyDisplay::set_status_text(const char* text) {
+    strncpy(this->status_text, text, sizeof(this->status_text) - 1);
+}
+void MyDisplay::set_main_text(const char* text) {
+    strncpy(this->main_text, text, sizeof(this->main_text) - 1);
+}
+void MyDisplay::on_key_press(char key) {
+    this->current_key = key;
+}
+void MyDisplay::clear_all()
+{
+    this->status_text[0] = '\0';
+    this->main_text[0] = '\0';
+    this->current_key = 0;
 }
