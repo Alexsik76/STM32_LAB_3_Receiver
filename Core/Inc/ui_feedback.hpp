@@ -1,26 +1,30 @@
-// ui_feedback.h
+/**
+ * @file ui_feedback.hpp
+ * @brief LED blink feedback functions
+ */
 
-#ifndef INC_UI_FEEDBACK_HPP_
-#define INC_UI_FEEDBACK_HPP_
+#ifndef UI_FEEDBACK_H
+#define UI_FEEDBACK_H
 
 #include "main.h"
-#include "FreeRTOS.h"
-#include "task.h"
 
-// C-wrapper block to ensure C++ compatibility.
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief Performs a single, non-blocking UI blink (e.g., LED).
+ * @brief Perform a single LED blink (50ms)
  */
 void UI_Blink_Once(void);
-void UI_Blink_Triple(int);
+
+/**
+ * @brief Perform multiple LED blinks
+ * @param count Number of blinks
+ */
+void UI_Blink_Multi(int count);
 
 #ifdef __cplusplus
 }
 #endif
 
-
-#endif /* INC_UI_FEEDBACK_HPP_ */
+#endif // UI_FEEDBACK_H

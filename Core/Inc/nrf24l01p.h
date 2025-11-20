@@ -1,14 +1,12 @@
-/*
- * nrf24l01_plus.h
- *
- * Містить лише визначення регістрів, команд та типів для NRF24L01+
- *
+/**
+ * @file nrf24l01p.h
+ * @brief NRF24L01+ register and command definitions
  */
 
 #ifndef __NRF24L01P_H__
 #define __NRF24L01P_H__
 
-#include <stdint.h> // Використовуємо стандартні типи
+#include <stdint.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus

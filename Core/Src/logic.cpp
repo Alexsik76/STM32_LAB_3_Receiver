@@ -1,36 +1,44 @@
+/**
+ * @file logic.cpp
+ * @brief Application logic controller (MVC pattern)
+ */
+
 #include "logic.hpp"
-#include "rtos_tasks.h" // Тут наші extern хендли
+#include "rtos_tasks.h"
 #include <string.h>
 #include <stdio.h>
 
-// Глобальний об'єкт
+// Global instance
 LogicTask g_logic;
 
-// --- C-Wrapper (для виклику з freertos.c) ---
+// C wrapper for FreeRTOS
 extern "C" {
     void logic_run_task(void) {
         g_logic.task();
     }
 }
 
-// --- Реалізація ---
+// Implementation
 
 LogicTask::LogicTask() {
-    // Конструктор поки порожній
+    // Constructor currently empty
 }
 
+/**
+ * @brief Main logic task - processes radio packets and updates display
+ */
 void LogicTask::task() {
     
     RadioPacket rx_packet;
 
-    // Початковий статус
+    // Initial status
     send_to_display(DISP_CMD_SET_STATUS, "Logic Ready");
 
     while (1) {
-        // 1. Чекаємо пакет від Радіо (з нової черги radioToLogicQueueHandle)
+        // Wait for packet from radio queue
         if (osMessageQueueGet(radioToLogicQueueHandle, &rx_packet, NULL, osWaitForever) == osOK) {
             
-            // 2. Парсимо режими (Логіка MVC: Controller вирішує)
+            // Parse mode and decide what to display (MVC: Controller logic)
             switch (rx_packet.mode) {
                 
                 case MODE_KEYPAD:
@@ -44,9 +52,8 @@ void LogicTask::task() {
                 case MODE_SERVO:
                 {
                     send_to_display(DISP_CMD_SET_STATUS, "RX: Servo Ctrl");
-                    send_to_display(DISP_CMD_SET_STATUS, "RX: Servo Ctrl");
-                    // Тут буде логіка керування моторами.
-                    // А поки - візуалізація для налагодження:
+                    // Servo control logic will go here
+                    // For now - visualization for debugging:
                     char cmd_char = rx_packet.payload[0];
                     if (cmd_char == '2')      send_to_display(DISP_CMD_SET_MAIN_TEXT, "SERVO UP");
                     else if (cmd_char == '8') send_to_display(DISP_CMD_SET_MAIN_TEXT, "SERVO DOWN");
@@ -55,15 +62,16 @@ void LogicTask::task() {
                     else                      send_to_display(DISP_CMD_SET_MAIN_TEXT, "---");
                     break;
                 }
+                
                 case MODE_AUTO:
                     send_to_display(DISP_CMD_SET_STATUS, "RX: Auto Text");
-                    // Передаємо весь рядок на екран
+                    // Pass entire string to screen
                     send_to_display(DISP_CMD_SET_MAIN_TEXT, rx_packet.payload);
                     break;
 
                 default:
                 {
-                    // Невідомий режим
+                    // Unknown mode
                    send_to_display(DISP_CMD_CLEAR, NULL);
                     send_to_display(DISP_CMD_SET_STATUS, "Unknown Data");
                     send_to_display(DISP_CMD_SET_MAIN_TEXT, "Error");
@@ -75,7 +83,12 @@ void LogicTask::task() {
     }
 }
 
-// Приватний метод для спрощення відправки в чергу дисплея
+/**
+ * @brief Helper method to send commands to display queue
+ * @param cmd Display command type
+ * @param text Text to display (optional)
+ * @param key Single character key (optional)
+ */
 void LogicTask::send_to_display(DisplayCommand_t cmd, const char* text, char key) {
     DisplayMessage_t msg;
     msg.command = cmd;
@@ -89,6 +102,6 @@ void LogicTask::send_to_display(DisplayCommand_t cmd, const char* text, char key
     
     msg.key = key;
 
-    // Кладемо в чергу дисплея (використовуємо хендл з rtos_tasks.h)
+    // Put in display queue
     osMessageQueuePut(displayQueueHandleHandle, &msg, 0, 0);
 }

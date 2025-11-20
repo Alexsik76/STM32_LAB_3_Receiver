@@ -1,16 +1,21 @@
-#include "nrf24l01p.hpp"
-#include <string.h> // для memset
+/**
+ * @file nrf24l01p.cpp
+ * @brief NRF24L01+ radio chip driver implementation
+ */
 
-// #############################################################################
-// ## Конструктор
-// #############################################################################
+#include "nrf24l01p.hpp"
+#include <string.h>
+
+// ============================================================================
+// Constructor
+// ============================================================================
 
 Nrf24l01p::Nrf24l01p(SPI_HandleTypeDef* spi,
                      GPIO_TypeDef* cs_port, uint16_t cs_pin,
                      GPIO_TypeDef* ce_port, uint16_t ce_pin,
                      uint8_t payload_len)
 {
-    // Зберігаємо всі вказівники та налаштування
+    // Store all pointers and settings
     this->spi_handle = spi;
     this->csn_port = cs_port;
     this->csn_pin = cs_pin;
@@ -19,9 +24,9 @@ Nrf24l01p::Nrf24l01p(SPI_HandleTypeDef* spi,
     this->payload_length = payload_len;
 }
 
-// #############################################################################
-// ## Публічні методи (API)
-// #############################################################################
+// ============================================================================
+// Public API methods
+// ============================================================================
 
 void Nrf24l01p::init_rx(channel MHz, air_data_rate bps)
 {
@@ -36,7 +41,7 @@ void Nrf24l01p::init_rx(channel MHz, air_data_rate bps)
     this->set_address_widths(5);
     this->set_auto_retransmit_count(3);
     this->set_auto_retransmit_delay(250);
-    this->ce_high(); // Вмикаємо прийом
+    this->ce_high(); // Enable reception
 }
 
 void Nrf24l01p::init_tx(channel MHz, air_data_rate bps)
@@ -63,7 +68,6 @@ void Nrf24l01p::receive(uint8_t* rx_payload)
 void Nrf24l01p::transmit(uint8_t* tx_payload)
 {
     this->write_tx_fifo(tx_payload);
-
 }
 
 void Nrf24l01p::handle_tx_irq()
@@ -78,7 +82,7 @@ void Nrf24l01p::handle_tx_irq()
     if (status & (1 << 4)) // MAX_RT (Max Retries)
     {
         this->clear_max_rt();
-        this->flush_tx_fifo(); // Очистити FIFO, якщо не вдалося
+        this->flush_tx_fifo(); // Clear FIFO on failure
     }
 }
 
@@ -97,7 +101,7 @@ void Nrf24l01p::power_up()
     uint8_t new_config = read_register(NRF24L01P_REG_CONFIG);
     new_config |= (1 << 1); // Set PWR_UP bit
     write_register(NRF24L01P_REG_CONFIG, new_config);
-    HAL_Delay(2); // Затримка на стабілізацію
+    HAL_Delay(2); // Stabilization delay
 }
 
 void Nrf24l01p::power_down()
@@ -146,26 +150,26 @@ uint8_t Nrf24l01p::get_fifo_status()
 
 void Nrf24l01p::clear_rx_dr()
 {
-    // Очищуємо біт RX_DR (біт 6)
+    // Clear RX_DR bit (bit 6)
     write_register(NRF24L01P_REG_STATUS, (1 << 6));
 }
 
 void Nrf24l01p::clear_tx_ds()
 {
-    // Очищуємо біт TX_DS (біт 5)
+    // Clear TX_DS bit (bit 5)
     write_register(NRF24L01P_REG_STATUS, (1 << 5));
 }
 
 void Nrf24l01p::clear_max_rt()
 {
-    // Очищуємо біт MAX_RT (біт 4)
+    // Clear MAX_RT bit (bit 4)
     write_register(NRF24L01P_REG_STATUS, (1 << 4));
 }
 
 
-// #############################################################################
-// ## Приватні методи (Керування пінами та SPI)
-// #############################################################################
+// ============================================================================
+// Private methods - Pin and SPI control
+// ============================================================================
 
 void Nrf24l01p::cs_high()
 {
@@ -191,7 +195,7 @@ uint8_t Nrf24l01p::read_register(uint8_t reg)
 {
     uint8_t command = NRF24L01P_CMD_R_REGISTER | reg;
     uint8_t status;
-    uint8_t read_val;
+   uint8_t read_val;
 
     this->cs_low();
     HAL_SPI_TransmitReceive(this->spi_handle, &command, &status, 1, 2000);
@@ -212,7 +216,7 @@ uint8_t Nrf24l01p::write_register(uint8_t reg, uint8_t value)
     HAL_SPI_Transmit(this->spi_handle, &write_val, 1, 2000);
     this->cs_high();
 
-    return write_val; // У вашому C-коді поверталося 'write_val', хоча логічніше 'status'
+    return write_val;
 }
 
 void Nrf24l01p::write_register_multi(uint8_t reg, uint8_t* value, uint8_t len)
@@ -227,16 +231,16 @@ void Nrf24l01p::write_register_multi(uint8_t reg, uint8_t* value, uint8_t len)
 }
 
 
-// #############################################################################
-// ## Приватні методи (Внутрішня логіка, перенесена з .c)
-// #############################################################################
+// ============================================================================
+// Private methods - Internal logic
+// ============================================================================
 
 void Nrf24l01p::reset()
 {
     // Reset pins
     this->cs_high();
     this->ce_low();
-    HAL_Delay(5); // Дамо чіпу час на запуск
+    HAL_Delay(5); // Give chip time to start
 
     // Reset registers
     write_register(NRF24L01P_REG_CONFIG, 0x08);
@@ -246,7 +250,7 @@ void Nrf24l01p::reset()
     write_register(NRF24L01P_REG_SETUP_RETR, 0x03);
     write_register(NRF24L01P_REG_RF_CH, 0x02);
     write_register(NRF24L01P_REG_RF_SETUP, 0x07); // 0dBm, 1Mbps
-    write_register(NRF24L01P_REG_STATUS, 0x7E);  // Очистити всі IRQ
+    write_register(NRF24L01P_REG_STATUS, 0x7E);  // Clear all IRQ flags
     write_register(NRF24L01P_REG_RX_PW_P0, 0x00);
     write_register(NRF24L01P_REG_RX_PW_P1, 0x00);
     write_register(NRF24L01P_REG_RX_PW_P2, 0x00);
@@ -261,7 +265,7 @@ void Nrf24l01p::reset()
     this->flush_rx_fifo();
     this->flush_tx_fifo();
 
-    // Очистити прапорці IRQ
+    // Clear IRQ flags
     clear_rx_dr();
     clear_tx_ds();
     clear_max_rt();
@@ -288,7 +292,7 @@ uint8_t Nrf24l01p::read_rx_fifo(uint8_t* rx_payload)
 
     this->cs_low();
     HAL_SPI_TransmitReceive(this->spi_handle, &command, &status, 1, 2000);
-    // Використовуємо this->payload_length замість #define
+    // Use member variable instead of #define
     HAL_SPI_Receive(this->spi_handle, rx_payload, this->payload_length, 2000);
     this->cs_high();
 
@@ -302,7 +306,7 @@ uint8_t Nrf24l01p::write_tx_fifo(uint8_t* tx_payload)
 
     this->cs_low();
     HAL_SPI_TransmitReceive(this->spi_handle, &command, &status, 1, 2000);
-    // Використовуємо this->payload_length замість #define
+    // Use member variable instead of #define
     HAL_SPI_Transmit(this->spi_handle, tx_payload, this->payload_length, 2000);
     this->cs_high();
 
@@ -311,7 +315,7 @@ uint8_t Nrf24l01p::write_tx_fifo(uint8_t* tx_payload)
 
 void Nrf24l01p::set_rx_payload_widths(widths bytes)
 {
-    // Ми використовуємо лише P0
+    // We only use P0
     write_register(NRF24L01P_REG_RX_PW_P0, bytes);
 }
 
@@ -322,12 +326,12 @@ void Nrf24l01p::set_crc_length(length bytes)
     switch(bytes)
     {
         case 1:
-            new_config &= ~(1 << 3); // Clear EN_CRC
-            new_config &= ~(1 << 2); // Clear CRCO
+            new_config |= (1 << 3);   // Enable CRC
+            new_config &= ~(1 << 2);  // 1 byte CRC
             break;
         case 2:
-            new_config |= (1 << 3);  // Set EN_CRC
-            new_config |= (1 << 2);  // Set CRCO
+            new_config |= (1 << 3);   // Enable CRC
+            new_config |= (1 << 2);   // 2 byte CRC
             break;
     }
     write_register(NRF24L01P_REG_CONFIG, new_config);
@@ -335,7 +339,7 @@ void Nrf24l01p::set_crc_length(length bytes)
 
 void Nrf24l01p::set_address_widths(widths bytes)
 {
-    // Кодування: 0b01 = 3 байти, 0b10 = 4 байти, 0b11 = 5 байт
+    // Encoding: 0b01 = 3 bytes, 0b10 = 4 bytes, 0b11 = 5 bytes
     if(bytes >= 3 && bytes <= 5)
         write_register(NRF24L01P_REG_SETUP_AW, bytes - 2);
 }
@@ -344,9 +348,9 @@ void Nrf24l01p::set_auto_retransmit_count(count cnt)
 {
     uint8_t new_setup_retr = read_register(NRF24L01P_REG_SETUP_RETR);
 
-    cnt &= 0x0F; // Максимум 15
-    new_setup_retr &= 0xF0; // Очистити старі біти ARC
-    new_setup_retr |= cnt;  // Встановити нові
+    cnt &= 0x0F; // Maximum 15
+    new_setup_retr &= 0xF0; // Clear old ARC bits
+    new_setup_retr |= cnt;  // Set new value
 
     write_register(NRF24L01P_REG_SETUP_RETR, new_setup_retr);
 }
@@ -355,13 +359,13 @@ void Nrf24l01p::set_auto_retransmit_delay(delay us)
 {
     uint8_t new_setup_retr = read_register(NRF24L01P_REG_SETUP_RETR);
 
-    // Кодування: 0000 = 250us, 0001 = 500us ... 1111 = 4000us
+    // Encoding: 0000 = 250us, 0001 = 500us ... 1111 = 4000us
     uint8_t delay_code = (us / 250) - 1;
     if (us < 250) delay_code = 0;
-    if (delay_code > 0x0F) delay_code = 0x0F; // Максимум 4000us
+    if (delay_code > 0x0F) delay_code = 0x0F; // Maximum 4000us
 
-    new_setup_retr &= 0x0F; // Очистити старі біти ARD
-    new_setup_retr |= (delay_code << 4); // Встановити нові
+    new_setup_retr &= 0x0F; // Clear old ARD bits
+    new_setup_retr |= (delay_code << 4); // Set new value
 
     write_register(NRF24L01P_REG_SETUP_RETR, new_setup_retr);
 }
@@ -376,8 +380,8 @@ void Nrf24l01p::set_rf_tx_output_power(output_power dBm)
 {
     uint8_t new_rf_setup = read_register(NRF24L01P_REG_RF_SETUP);
 
-    new_rf_setup &= ~((1<<2) | (1<<1)); // Очистити біти RF_PWR
-    new_rf_setup |= (dBm << 1);         // Встановити нові
+    new_rf_setup &= ~((1<<2) | (1<<1)); // Clear RF_PWR bits
+    new_rf_setup |= (dBm << 1);         // Set new value
 
     write_register(NRF24L01P_REG_RF_SETUP, new_rf_setup);
 }
@@ -386,7 +390,7 @@ void Nrf24l01p::set_rf_air_data_rate(air_data_rate bps)
 {
     uint8_t new_rf_setup = read_register(NRF24L01P_REG_RF_SETUP);
 
-    // Очистити біти data rate
+    // Clear data rate bits
     new_rf_setup &= ~((1 << 5) | (1 << 3));
 
     switch(bps)
@@ -404,47 +408,37 @@ void Nrf24l01p::set_rf_air_data_rate(air_data_rate bps)
     write_register(NRF24L01P_REG_RF_SETUP, new_rf_setup);
 }
 
-
 void Nrf24l01p::set_rx_address_p1(uint8_t* address) 
 {
-    // 1. Пишемо 5 байт адреси, використовуючи існуючий метод multi
-    // 0x0B - NRF24L01P_REG_RX_ADDR_P1
-    write_register_multi(0x0B, address, 5); 
+    // 1. Write 5-byte address
+    write_register_multi(NRF24L01P_REG_RX_ADDR_P1, address, 5); 
     
-    // 2. Вказуємо розмір пакету (1 байт)
-    // 0x12 - NRF24L01P_REG_RX_PW_P1
+    // 2. Set packet size
     uint8_t size = this->payload_length; 
-    write_register(0x12, size); // Передаємо значення, а не вказівник!
+    write_register(NRF24L01P_REG_RX_PW_P1, size);
     
-    // 3. Вмикаємо Pipe 1 в регістрі EN_RXADDR (0x02)
-    // read_register повертає значення, а не приймає вказівник
-    uint8_t en_rx = read_register(0x02); 
-    
-    en_rx |= (1 << 1); // Біт 1 = ERX_P1
-    
-    write_register(0x02, en_rx); // Пишемо нове значення назад
+    // 3. Enable Pipe 1 in EN_RXADDR register
+    uint8_t en_rx = read_register(NRF24L01P_REG_EN_RXADDR); 
+    en_rx |= (1 << 1); // Bit 1 = ERX_P1
+    write_register(NRF24L01P_REG_EN_RXADDR, en_rx);
 }
 
-// Перевірка, чи прийшли дані
+// Check if data has arrived
 bool Nrf24l01p::is_data_ready(void) 
 {
-    // 0x07 - NRF24L01P_REG_STATUS
-    // Використовуємо read_register, який повертає uint8_t
-    uint8_t status = read_register(0x07);
+    uint8_t status = read_register(NRF24L01P_REG_STATUS);
     
-    // Біт 6: RX_DR
+    // Bit 6: RX_DR (Received Data Ready)
     if (status & (1 << 6)) {
         return true;
     }
     return false;
 }
 
-// Скидання прапорів переривань
+// Clear interrupt flags
 void Nrf24l01p::reset_irq_flags(void) 
 {
-    // Скидаємо RX_DR, TX_DS, MAX_RT
+    // Clear RX_DR, TX_DS, MAX_RT (bits 6, 5, 4)
     uint8_t clear_mask = 0x70;
-    
-    // 0x07 - NRF24L01P_REG_STATUS
-    write_register(0x07, clear_mask); // Передаємо значення маски
+    write_register(NRF24L01P_REG_STATUS, clear_mask);
 }

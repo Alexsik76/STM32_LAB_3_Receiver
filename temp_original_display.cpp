@@ -7,12 +7,12 @@
 #include "ssd1306.h"
 #include "fonts.h"
 
-// Global objects
+// --- Глобальні об'єкти ---
 extern I2C_HandleTypeDef hi2c1;
 MyDisplay g_display(&hi2c1);
 
 // =============================================================================
-// C wrapper for FreeRTOS
+// ЦЕЙ БЛОК (extern "C") - ЄДИНЕ МІСЦЕ, ЯКЕ ВІДРІЗНЯЄТЬСЯ НА TX І RX
 // =============================================================================
 extern "C" {
 
@@ -38,20 +38,20 @@ void display_init(void) {
 // =============================================================================
 
 
-// C++ Implementation
+// --- C++ Implementation 
 
 MyDisplay::MyDisplay(I2C_HandleTypeDef *hi2c)
 {
     this->hi2c = hi2c;
     this->current_key = 0;
-    this->queueHandle = NULL;
+    this->queueHandle = NULL; // Захист від дурня
     this->i2cSemHandle = NULL;
     memset(this->main_text, 0, sizeof(this->main_text));
     memset(this->status_text, 0, sizeof(this->status_text));
     strncpy(this->status_text, "Boot...", sizeof(this->status_text) - 1);
 }
 
-// Setup method implementation
+// Реалізація методу setup
 void MyDisplay::setup(osMessageQueueId_t queue, osSemaphoreId_t i2c_sem)
 {
     this->queueHandle = queue;
@@ -66,7 +66,7 @@ bool MyDisplay::init()
 
 void MyDisplay::task(void)
 {
-    // Check if setup was called
+    // Перевірка, чи викликали setup
     if (this->queueHandle == NULL) {
         vTaskDelete(NULL);
     }
@@ -79,11 +79,11 @@ void MyDisplay::task(void)
     this->update_screen_internal();
     osDelay(500);
     this->set_status_text("Ready");
-    this->set_main_text(""); // Clear center
+    this->set_main_text(""); // Очищуємо центр
     this->update_screen_internal();
     while (1)
     {
-        // Use passed handle instead of global
+        // Використовуємо переданий хендл this->queueHandle замість глобального
         if (osMessageQueueGet(this->queueHandle, &msg, NULL, osWaitForever) == osOK)
         {
             bool needs_redraw = false;
@@ -124,16 +124,18 @@ void MyDisplay::update_screen_internal()
 {
     ssd1306_Fill(Black);
 
-    // 1. Status bar (small font  6x8)
+    // 1. Статус бар (дрібний шрифт 6x8)
+    // Тут використовуємо звичайний WriteString
     if (this->status_text[0] != '\0') {
         ssd1306_SetCursor(0, 0);
         ssd1306_WriteString(this->status_text, (FontDef_8bit_t*)&Font_6x8, White);
     }
 
-    // 2. Main text (large font 11x18)
+    // 2. Головний текст (ВЕЛИКИЙ шрифт 11x18)
+    // Тут використовуємо WriteString_Large
     if (this->main_text[0] != '\0') 
     {
-        // Center for 11px wide font
+        // Центруємо для шрифту шириною 11 пікселів
         int len = strlen(this->main_text);
         int px_width = len * 11; 
         
@@ -142,11 +144,12 @@ void MyDisplay::update_screen_internal()
 
         ssd1306_SetCursor(x_pos, 20);
         
+        // ВИКЛИКАЄМО ПРАВИЛЬНУ ФУНКЦІЮ БЕЗ КАСТИНГУ!
         ssd1306_WriteString_Large(this->main_text, &Font_11x18, White);
     }
     else if (this->current_key != 0) 
     {
-        // Single letter centered
+        // Одна літера по центру
         ssd1306_SetCursor(54, 20); 
         char str[2] = {this->current_key, '\0'};
         

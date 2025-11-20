@@ -1,25 +1,29 @@
+/**
+ * @file radio.cpp
+ * @brief NRF24L01+ radio receiver task implementation
+ */
+
 #include "radio.hpp"
 #include "cmsis_os.h"
 #include "main.h"
 #include <stdio.h>
 #include <string.h>
-#include "rtos_tasks.h"     // Тут оголошені extern хендли (radioIrqSemHandle, displayQueueHandleHandle)
+#include "rtos_tasks.h"
 #include "ui_feedback.hpp" 
 #include "nrf24l01p.hpp"
 
-// --- Глобальні об'єкти ---
+// Global objects
 MyRadio g_radio;
 extern SPI_HandleTypeDef hspi1;
 
-// Адреса приймача (має збігатися з TX_ADDRESS передавача)
+// RX address (must match transmitter's TX_ADDRESS)
 uint8_t RX_ADDRESS[5] = {0xEE, 0xDD, 0xCC, 0xBB, 0xAA};
 
-// --- C-Wrappers ---
+// C wrapper functions for FreeRTOS integration
 extern "C" {
 
-// Функції, які викликаються з main.c / freertos.c
 void radio_init(void) {
-    // Порожня, ініціалізація відбувається в конструкторі та методі init()
+    // Initialization happens in constructor and init() method
 }
 
 void radio_run_task(void) {
@@ -28,63 +32,72 @@ void radio_run_task(void) {
 
 } // extern "C"
 
-// --- C++ Implementation ---
+// C++ Implementation
 
 MyRadio::MyRadio()
     : radio(&hspi1,
             NRF24_CSN_GPIO_Port, NRF24_CSN_Pin,
             NRF24_CE_GPIO_Port,  NRF24_CE_Pin,
-            RADIO_PAYLOAD_SIZE) // 32 байти
+            RADIO_PAYLOAD_SIZE) // 32 bytes
 {
 }
 
+/**
+ * @brief Initialize NRF24L01+ in RX mode
+ * @return true on success
+ */
 bool MyRadio::init(void)
 {
-    // 1. Базова ініціалізація (106 канал, 1Mbps - як у передавача)
+    // Basic initialization (channel 106, 1Mbps - same as transmitter)
     radio.init_rx(106, _1Mbps); 
 
-    // 2. Налаштовуємо трубу (Pipe 1) на прийом
+    // Configure Pipe 1 for reception
     radio.set_rx_address_p1(RX_ADDRESS);
     
-    // 3. Вмикаємо живлення
+    // Power up the chip
     radio.power_up();
 
-    // 4. Переходимо в режим прослуховування (CE High)
+    // Enter listening mode (CE High)
     radio.ce_high(); 
 
     return true;
 }
 
+/**
+ * @brief Main radio task - waits for IRQ and processes received packets
+ */
 void MyRadio::task(void)
 {
     if (!this->init()) {
-        // Якщо ініціалізація не вдалась, видаляємо задачу
+        // If initialization failed, delete task
         vTaskDelete(NULL);
     }
 
-    RadioPacket rx_buffer; // Буфер для прийому даних
+    RadioPacket rx_buffer; // Reception buffer
 
     while(1)
     {
-        // --- 1. Чекаємо на СИГНАЛ ВІД РАДІО (IRQ) ---
-        // Чекаємо, поки пін IRQ дасть сигнал (через семафор)
+        // Wait for radio IRQ signal (via semaphore)
         if (osSemaphoreAcquire(radioIrqSemHandle, osWaitForever) == osOK)
         {
-            // 2. Перевіряємо, чи є дані в буфері чіпа
+            // Check if data is ready in chip buffer
             if (radio.is_data_ready())
             {
-                // 3. Читаємо дані
+                // Read data from radio
                 radio.receive((uint8_t*)&rx_buffer);
 
-                // 4. Кладемо дані в чергу для дисплея
-                // timeout 0: якщо черга повна, пакет просто пропаде (це краще, ніж зависання)
-                osMessageQueuePut(radioToLogicQueueHandle, (uint8_t*)&rx_buffer, 0, 0);
+                // Put data into logic queue
+                // Timeout 0: if queue is full, packet is dropped (better than blocking)
+                osStatus_t status = osMessageQueuePut(radioToLogicQueueHandle, (uint8_t*)&rx_buffer, 0, 0);
                 
-                // Індикація прийому (якщо реалізовано)
-                UI_Blink_Once();
+                // Visual feedback only on successful queue put
+                if (status == osOK) {
+                    UI_Blink_Once();
+                }
+                // If queue is full, packet is lost silently
             }
 
-            // 5. Скидаємо прапори переривань на чіпі, щоб пін IRQ піднявся назад
+            // Clear IRQ flags on chip so IRQ pin goes back high
             radio.reset_irq_flags(); 
         }
     }

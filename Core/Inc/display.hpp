@@ -1,14 +1,29 @@
+/**
+ * @file display.hpp
+ * @brief Display task class definition for SSD1306 OLED
+ */
+
 #pragma once
 #include "main.h"
 #include "cmsis_os.h" 
 #include "radio_protocol.hpp"
 
+/**
+ * @class MyDisplay
+ * @brief Manages SSD1306 OLED display in FreeRTOS task (MVC View)
+ */
 class MyDisplay {
 public:
     MyDisplay(I2C_HandleTypeDef *hi2c);
 
+    /**
+     * @brief Setup task handles (must be called before task())
+     */
     void setup(osMessageQueueId_t queue, osSemaphoreId_t i2c_sem);
     
+    /**
+     * @brief Main display task loop
+     */
     void task();
 
 private:

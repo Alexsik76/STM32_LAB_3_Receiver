@@ -1,28 +1,35 @@
+/**
+ * @file nrf24l01p.hpp
+ * @brief NRF24L01+ radio chip C++ driver class
+ */
+
 #pragma once
 
-#include "main.h" // Для HAL_SPI... та GPIO
-#include "nrf24l01p.h" // Ваш оригінальний .h файл з усіма #define NRF24L01P_... (регістрами) та typedefs
+#include "main.h"
+#include "nrf24l01p.h"
 
+/**
+ * @class Nrf24l01p
+ * @brief Object-oriented driver for NRF24L01+ 2.4GHz radio transceiver
+ */
 class Nrf24l01p
 {
 public:
-    // ## Публічний API ##
-
     /**
-     * @brief Конструктор.
-     * @param spi: Вказівник на HAL SPI handle (напр. &hspi1)
-     * @param cs_port: Порт для CSN (Chip Select)
-     * @param cs_pin: Пін для CSN
-     * @param ce_port: Порт для CE (Chip Enable)
-     * @param ce_pin: Пін для CE
-     * @param payload_len: Довжина пакету (замість NRF24L01P_PAYLOAD_LENGTH)
+     * @brief Constructor - initializes driver with hardware configuration
+     * @param spi Pointer to HAL SPI handle
+     * @param cs_port GPIO port for CSN (Chip Select)
+     * @param cs_pin GPIO pin for CSN
+     * @param ce_port GPIO port for CE (Chip Enable)
+     * @param ce_pin GPIO pin for CE
+     * @param payload_len Payload length in bytes
      */
     Nrf24l01p(SPI_HandleTypeDef* spi,
               GPIO_TypeDef* cs_port, uint16_t cs_pin,
               GPIO_TypeDef* ce_port, uint16_t ce_pin,
               uint8_t payload_len);
 
-    // Головні функції
+    // Main API functions
     void init_rx(channel MHz, air_data_rate bps);
     void init_tx(channel MHz, air_data_rate bps);
 
@@ -30,15 +37,15 @@ public:
     void transmit(uint8_t* tx_payload);
     void handle_tx_irq();
 
-    // Налаштування
+    // Configuration
     void set_tx_address(uint8_t* address);
     void set_rx_address_p0(uint8_t* address);
-
     void set_rx_address_p1(uint8_t* address);
+    
     bool is_data_ready(void);
     void reset_irq_flags(void);
 
-    // Керування
+    // Control
     void power_up();
     void power_down();
     void flush_rx_fifo();
@@ -46,19 +53,17 @@ public:
     void ce_high();
     void ce_low();
 
-    // Статус
+    // Status
     uint8_t get_status();
     uint8_t get_fifo_status();
 
-    // Очистка прапорців
+    // IRQ flag clear
     void clear_rx_dr();
     void clear_tx_ds();
     void clear_max_rt();
 
 private:
-    // ## Приватні члени ##
-
-    // Збережені налаштування
+    // Hardware configuration
     SPI_HandleTypeDef* spi_handle;
     GPIO_TypeDef* csn_port;
     uint16_t           csn_pin;
@@ -66,19 +71,16 @@ private:
     uint16_t           ce_pin;
     uint8_t            payload_length;
 
-    // ## Приватні методи (колишні static C-функції) ##
-
-    // Керування пінами
+    // Pin control
     void cs_high();
     void cs_low();
 
-
-    // SPI комунікація
+    // SPI communication
     uint8_t read_register(uint8_t reg);
     uint8_t write_register(uint8_t reg, uint8_t value);
     void write_register_multi(uint8_t reg, uint8_t* value, uint8_t len);
 
-    // Внутрішні функції
+    // Internal functions
     void reset();
     void set_prx_mode();
     void set_ptx_mode();

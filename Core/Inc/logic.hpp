@@ -1,22 +1,35 @@
+/**
+ * @file logic.hpp
+ * @brief Application logic controller class definition
+ */
+
 #pragma once
 
-#include "radio_protocol.hpp"   // Вхідні дані (від NRF24)
-#include "display_protocol.hpp" // Вихідні дані (до дисплея)
-#include "cmsis_os.h"         // Для черг
+#include "radio_protocol.hpp"   // Input data (from NRF24)
+#include "display_protocol.hpp" // Output data (to display)
+#include "cmsis_os.h"
 
+/**
+ * @class LogicTask
+ * @brief MVC Controller - processes radio data and controls display
+ */
 class LogicTask {
 public:
     LogicTask();
     
-    // Головний метод
+    /**
+     * @brief Main logic task loop
+     */
     void task();
 
 private:
-    // Допоміжні методи для відправки команд на дисплей
+    /**
+     * @brief Helper to send commands to display queue
+     * @param cmd Display command type
+     * @param text Text message (nullable)
+     * @param key Single character key (default: 0)
+     */
     void send_to_display(DisplayCommand_t cmd, const char* text, char key = 0);
-    
-    // Сюди ми будемо класти повідомлення для дисплея
-    // (А пізніше сюди додамо чергу для сервоприводів)
 };
 
-extern LogicTask g_logic; // Глобальний об'єкт
+extern LogicTask g_logic;

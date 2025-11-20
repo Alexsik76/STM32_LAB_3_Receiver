@@ -1,15 +1,13 @@
-/*
- * ui_feedback.c
- * (Оновлено для CMSIS-OS)
+/**
+ * @file ui_feedback.cpp
+ * @brief LED blink feedback for user interface events
  */
 
 #include <ui_feedback.hpp>
-#include "cmsis_os.h" // <<< 1. ПІДКЛЮЧАЄМО CMSIS API
-// #include "FreeRTOS.h" // <<< 2. ВИДАЛЯЄМО NATIVE API
-// #include "task.h"
+#include "cmsis_os.h"
 
 /**
- * @brief Turns on the LED for feedback (blink start).
+ * @brief Turn on LED (blink start)
  */
 static void UI_Blink_Start(void)
 {
@@ -17,7 +15,7 @@ static void UI_Blink_Start(void)
 }
 
 /**
- * @brief Turns off the LED for feedback (blink end).
+ * @brief Turn off LED (blink end)
  */
 static void UI_Blink_End(void)
 {
@@ -25,19 +23,20 @@ static void UI_Blink_End(void)
 }
 
 /**
- * @brief Performs a single, 50ms UI blink.
+ * @brief Perform a single 50ms LED blink
  */
 void UI_Blink_Once(void)
 {
 	UI_Blink_Start();
-    osDelay(50); // <<< 3. ЗАМІНЕНО vTaskDelay() НА osDelay()
+    osDelay(50);
 	UI_Blink_End();
 }
 
 /**
- * @brief Performs a triple UI blink.
+ * @brief Perform multiple LED blinks
+ * @param count Number of blinks (default: 3)
  */
-void UI_Blink_Multi(int count = 3)
+void UI_Blink_Multi(int count)
 {
 	for (int i = 0; i < count; ++i)
 	{
