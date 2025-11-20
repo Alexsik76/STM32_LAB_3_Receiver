@@ -22,17 +22,7 @@ static HAL_StatusTypeDef ssd1306_WriteCommand(uint8_t cmd)
 {
     HAL_StatusTypeDef status = HAL_ERROR;
 
-    // V2 syntax: osMutexAcquire(handle, timeout_ticks)
-    // Чекаємо до 100 тіків. osOK означає успіх.
-    if (osMutexAcquire(i2cMutexHandle, 100) == osOK)
-    {
-        // Шина наша. Відправляємо.
         status = HAL_I2C_Mem_Write(&hi2c1, (SSD1306_I2C_ADDR << 1), 0x00, 1, &cmd, 1, 100);
-
-        // Звільняємо шину.
-        osMutexRelease(i2cMutexHandle);
-    }
-    // Якщо м'ютекс зайнятий більше 100мс, повернемо HAL_ERROR (status за замовчуванням)
 
     return status;
 }
@@ -192,15 +182,12 @@ static uint8_t ssd1306_SetFullAddressWindow(void)
 HAL_StatusTypeDef ssd1306_UpdateScreenDMA(void)
 {
     // 1. Set memory window
-    // Ця функція тепер сама безпечно бере м'ютекс для кожної команди,
-    // бо ми оновили ssd1306_WriteCommand.
     if (ssd1306_SetFullAddressWindow() == 0)
     {
         return HAL_ERROR;
     }
 
     // 2. Запускаємо DMA.
-    // HAL сам перевірить, чи вільна шина (HAL_BUSY).
     return HAL_I2C_Mem_Write_DMA(&hi2c1, (SSD1306_I2C_ADDR << 1),
                                     0x40,
                                     I2C_MEMADD_SIZE_8BIT,

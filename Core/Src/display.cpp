@@ -18,7 +18,7 @@ extern "C" {
 
 
 extern osMessageQueueId_t displayQueueHandleHandle;
-extern osSemaphoreId_t i2cTxDoneSemHandle; 
+extern osSemaphoreId_t i2cTxDoneSemHandle;
 
 
 
@@ -148,6 +148,8 @@ void MyDisplay::update_screen_internal()
     }
 
     // 3. DMA Update
+   
+
     ssd1306_UpdateScreenDMA();
     
     if (this->i2cSemHandle != NULL) {
@@ -155,6 +157,7 @@ void MyDisplay::update_screen_internal()
     } else {
         osDelay(10);
     }
+    
 }
 
 void MyDisplay::set_status_text(const char* text) {

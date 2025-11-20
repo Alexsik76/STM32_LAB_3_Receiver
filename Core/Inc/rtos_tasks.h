@@ -20,9 +20,6 @@ extern osMessageQueueId_t radioToLogicQueueHandle;  // Queue from radio to logic
 extern osSemaphoreId_t radioIrqSemHandle;   // IRQ semaphore for radio  
 extern osSemaphoreId_t i2cTxDoneSemHandle;  // I2C DMA complete semaphore
 
-// Mutex handles
-extern osMutexId_t i2cMutexHandle;  // I2C bus mutex (currently unused)
-
 // Task entry points
 void display_run_task(void);
 void radio_run_task(void);

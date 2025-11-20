@@ -51,21 +51,21 @@
 osThreadId_t radio_taskHandle;
 const osThreadAttr_t radio_task_attributes = {
   .name = "radio_task",
-  .stack_size = 160 * 4,  // 640 bytes - radio packet processing
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for display_task */
 osThreadId_t display_taskHandle;
 const osThreadAttr_t display_task_attributes = {
   .name = "display_task",
-  .stack_size = 192 * 4,  // 768 bytes - I2C and text buffers
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for logic_task */
 osThreadId_t logic_taskHandle;
 const osThreadAttr_t logic_task_attributes = {
   .name = "logic_task",
-  .stack_size = 256 * 4,  // 1024 bytes - logic processing and formatting
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for displayQueueHandle */
@@ -77,11 +77,6 @@ const osMessageQueueAttr_t displayQueueHandle_attributes = {
 osMessageQueueId_t radioToLogicQueueHandle;
 const osMessageQueueAttr_t radioToLogicQueue_attributes = {
   .name = "radioToLogicQueue"
-};
-/* Definitions for i2cMutex */
-osMutexId_t i2cMutexHandle;
-const osMutexAttr_t i2cMutex_attributes = {
-  .name = "i2cMutex"
 };
 /* Definitions for radioIrqSem */
 osSemaphoreId_t radioIrqSemHandle;
@@ -113,9 +108,6 @@ void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
   /* USER CODE END Init */
-  /* Create the mutex(es) */
-  /* creation of i2cMutex */
-  i2cMutexHandle = osMutexNew(&i2cMutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -123,10 +115,10 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the semaphores(s) */
   /* creation of radioIrqSem */
-  radioIrqSemHandle = osSemaphoreNew(1, 0, &radioIrqSem_attributes);  // Initial count 0 - blocked until IRQ
+  radioIrqSemHandle = osSemaphoreNew(1, 1, &radioIrqSem_attributes);
 
   /* creation of i2cTxDoneSem */
-  i2cTxDoneSemHandle = osSemaphoreNew(1, 1, &i2cTxDoneSem_attributes);  // Initial count 1 - available for first transfer
+  i2cTxDoneSemHandle = osSemaphoreNew(1, 1, &i2cTxDoneSem_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -209,7 +201,6 @@ void logic_task_entry(void *argument)
   /* USER CODE BEGIN logic_task_entry */
   /* Infinite loop */
   logic_run_task();
-  vTaskDelete(NULL);
   /* USER CODE END logic_task_entry */
 }
 

@@ -15,7 +15,17 @@
                 "kind": "build",
                 "isDefault": false
             },
-            "problemMatcher": []
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,               // Показувати команду
+                "reveal": "always",         // Якщо панель закрита - відкрити її. Якщо відкрита - просто писати туди.
+                "focus": false,             // Не забирати фокус клавіатури
+                "panel": "shared",          // "shared" = Використовувати ОДИН термінал для цієї задачі постійно
+                "showReuseMessage": false,  // Прибрати "Press any key to close" (щоб не блокувало)
+                "clear": false,             // НЕ очищати екран (історія буде накопичуватись)
+                "close": false              // НЕ закривати термінал після успіху
+            }
         }
+        
     ]
 }
