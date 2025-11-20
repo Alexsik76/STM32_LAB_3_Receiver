@@ -22,10 +22,6 @@ uint8_t RX_ADDRESS[5] = {0xEE, 0xDD, 0xCC, 0xBB, 0xAA};
 // C wrapper functions for FreeRTOS integration
 extern "C" {
 
-void radio_init(void) {
-    // Initialization happens in constructor and init() method
-}
-
 void radio_run_task(void) {
     g_radio.task();
 }

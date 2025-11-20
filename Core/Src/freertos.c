@@ -112,8 +112,6 @@ void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
   */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
-	display_init();
-	radio_init();
   /* USER CODE END Init */
   /* Create the mutex(es) */
   /* creation of i2cMutex */

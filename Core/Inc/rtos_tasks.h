@@ -28,10 +28,6 @@ void display_run_task(void);
 void radio_run_task(void);
 void logic_run_task(void);
 
-// Initialization functions
-void radio_init(void);
-void display_init(void);
-
 #ifdef __cplusplus
 }
 #endif
