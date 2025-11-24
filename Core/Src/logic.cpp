@@ -60,11 +60,18 @@ void LogicTask::task() {
                     uint8_t val_x = rx_packet.payload[0];
                     uint8_t val_y = rx_packet.payload[1];
 
+                    int16_t trim_x = 0;  // Спробуй підібрати експериментально
+                    int16_t trim_y = 0;
+
                     // 2. Математика для моторів (залишається!)
                     // Нам все ще треба перетворити 0..255 у 1000..2000 для таймера
-                    uint32_t pulse_x = 1000 + ((uint32_t)val_x * 1000 / 255);
-                    uint32_t pulse_y = 1000 + ((uint32_t)val_y * 1000 / 255);
+                    uint32_t pulse_x = 1000 + ((uint32_t)val_x * 1000 / 255) + trim_x;
+                    uint32_t pulse_y = 1000 + ((uint32_t)val_y * 1000 / 255) + trim_y;
 
+                    if (pulse_x < 500) pulse_x = 500;
+                    if (pulse_x > 2500) pulse_x = 2500;
+                    if (pulse_y < 500) pulse_y = 500;
+                    if (pulse_y > 2500) pulse_y = 2500;
                     // 3. Крутимо мотори
                     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, pulse_x);
                     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, pulse_y);
