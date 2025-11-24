@@ -33,46 +33,64 @@ static HAL_StatusTypeDef ssd1306_WriteCommand(uint8_t cmd)
  */
 uint8_t ssd1306_Init(void)
 {
-    // Power-on delay
-    HAL_Delay(100);
+    // 1. Затримка для стабілізації живлення
+    HAL_Delay(150); 
 
-    // --- Initialization Sequence for 128x64 ---
+    // --- SSD1309 Specific: Unlock Command ---
+    // Розблокування команд (критично для 2.42")
+    if (ssd1306_WriteCommand(0xFD) != HAL_OK) return 0; 
+    if (ssd1306_WriteCommand(0x12) != HAL_OK) return 0; 
+
+    // --- Основна ініціалізація ---
     if (ssd1306_WriteCommand(0xAE) != HAL_OK) return 0; // Display OFF
-        if (ssd1306_WriteCommand(0x20) != HAL_OK) return 0; // Set Memory Addressing Mode
-        if (ssd1306_WriteCommand(0x00) != HAL_OK) return 0; // 00 = Horizontal
-        if (ssd1306_WriteCommand(0xB0) != HAL_OK) return 0; // Set Page Start Address
-        if (ssd1306_WriteCommand(0xC8) != HAL_OK) return 0; // Set COM Output Scan Direction
-        if (ssd1306_WriteCommand(0x00) != HAL_OK) return 0; // ---set low column address
-        if (ssd1306_WriteCommand(0x10) != HAL_OK) return 0; // ---set high column address
-        if (ssd1306_WriteCommand(0x40) != HAL_OK) return 0; // --set start line address
-        if (ssd1306_WriteCommand(0x81) != HAL_OK) return 0; // Set contrast
-        if (ssd1306_WriteCommand(0xFF) != HAL_OK) return 0; // Max contrast
-        if (ssd1306_WriteCommand(0xA1) != HAL_OK) return 0; // Set segment re-map 0 to 127
-        if (ssd1306_WriteCommand(0xA6) != HAL_OK) return 0; // Set normal display
-        if (ssd1306_WriteCommand(0xA8) != HAL_OK) return 0; // Set multiplex ratio
-        if (ssd1306_WriteCommand(0x3F) != HAL_OK) return 0; // 1/64 duty (for 128x64)
-        if (ssd1306_WriteCommand(0xD3) != HAL_OK) return 0; // Set display offset
-        if (ssd1306_WriteCommand(0x00) != HAL_OK) return 0; // no offset
-        if (ssd1306_WriteCommand(0xD5) != HAL_OK) return 0; // Set display clock divide ratio
-        if (ssd1306_WriteCommand(0x80) != HAL_OK) return 0; //
-        if (ssd1306_WriteCommand(0xD9) != HAL_OK) return 0; // Set pre-charge period
-        if (ssd1306_WriteCommand(0xF1) != HAL_OK) return 0;
-        if (ssd1306_WriteCommand(0xDA) != HAL_OK) return 0; // Set com pins hardware config
-        if (ssd1306_WriteCommand(0x12) != HAL_OK) return 0; // (for 128x64)
-        if (ssd1306_WriteCommand(0xDB) != HAL_OK) return 0; // Set vcomh
-        if (ssd1306_WriteCommand(0x40) != HAL_OK) return 0;
-        if (ssd1306_WriteCommand(0x8D) != HAL_OK) return 0; // Set Charge Pump
-        if (ssd1306_WriteCommand(0x14) != HAL_OK) return 0; // Enabled
-        if (ssd1306_WriteCommand(0xAF) != HAL_OK) return 0; // Display ONDisplay ON
+    
+    if (ssd1306_WriteCommand(0x20) != HAL_OK) return 0; // Memory Addressing Mode
+    if (ssd1306_WriteCommand(0x00) != HAL_OK) return 0; // Horizontal
 
-    // Clear buffer
+    if (ssd1306_WriteCommand(0xB0) != HAL_OK) return 0; // Page Start Address
+    if (ssd1306_WriteCommand(0xC8) != HAL_OK) return 0; // COM Output Scan Direction
+    
+    if (ssd1306_WriteCommand(0x00) != HAL_OK) return 0; // Low column
+    if (ssd1306_WriteCommand(0x10) != HAL_OK) return 0; // High column
+    
+    if (ssd1306_WriteCommand(0x40) != HAL_OK) return 0; // Start line
+
+    if (ssd1306_WriteCommand(0x81) != HAL_OK) return 0; // Contrast
+    if (ssd1306_WriteCommand(0x10) != HAL_OK) return 0; // Max contrast
+
+    if (ssd1306_WriteCommand(0xA1) != HAL_OK) return 0; // Segment Re-map
+    if (ssd1306_WriteCommand(0xA6) != HAL_OK) return 0; // Normal display
+    
+    if (ssd1306_WriteCommand(0xA8) != HAL_OK) return 0; // Multiplex ratio
+    if (ssd1306_WriteCommand(0x3F) != HAL_OK) return 0; // 64 lines
+
+    if (ssd1306_WriteCommand(0xD3) != HAL_OK) return 0; // Display offset
+    if (ssd1306_WriteCommand(0x00) != HAL_OK) return 0; 
+
+    if (ssd1306_WriteCommand(0xD5) != HAL_OK) return 0; // Clock divide
+    if (ssd1306_WriteCommand(0xA0) != HAL_OK) return 0; // <-- Оновлено для стабільності
+
+    if (ssd1306_WriteCommand(0xD9) != HAL_OK) return 0; // Pre-charge
+    if (ssd1306_WriteCommand(0xF1) != HAL_OK) return 0; 
+
+    if (ssd1306_WriteCommand(0xDA) != HAL_OK) return 0; // COM pins
+    if (ssd1306_WriteCommand(0x12) != HAL_OK) return 0; 
+
+    if (ssd1306_WriteCommand(0xDB) != HAL_OK) return 0; // VCOMH Deselect
+    if (ssd1306_WriteCommand(0x30) != HAL_OK) return 0; // <-- Оновлено для SSD1309
+
+    // Charge Pump (для багатьох модулів все ще потрібен)
+    if (ssd1306_WriteCommand(0x8D) != HAL_OK) return 0; 
+    if (ssd1306_WriteCommand(0x14) != HAL_OK) return 0; 
+
+    if (ssd1306_WriteCommand(0xAF) != HAL_OK) return 0; // Display ON
+
+    // Очищення
     ssd1306_Fill(Black);
-
-    // Update screen (blocking method) for the first time
     HAL_I2C_Mem_Write(&hi2c1, (SSD1306_I2C_ADDR << 1), 0x40, 1,
                       SSD1306_Buffer, sizeof(SSD1306_Buffer), 1000);
 
-    return 1; // Success
+    return 1;
 }
 
 /**

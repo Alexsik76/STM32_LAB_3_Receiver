@@ -5,12 +5,14 @@
 
 #include "logic.hpp"
 #include "rtos_tasks.h"
+#include "main.h" 
+#include "tim.h"
 #include <string.h>
 #include <stdio.h>
 
 // Global instance
 LogicTask g_logic;
-
+extern TIM_HandleTypeDef htim2;
 // C wrapper for FreeRTOS
 extern "C" {
     void logic_run_task(void) {
@@ -33,7 +35,8 @@ void LogicTask::task() {
 
     // Initial status
     send_to_display(DISP_CMD_SET_STATUS, "Logic Ready");
-
+    HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1); // PA0
+    HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3); // PA2
     while (1) {
         // Wait for packet from radio queue
         if (osMessageQueueGet(radioToLogicQueueHandle, &rx_packet, NULL, osWaitForever) == osOK) {
@@ -52,14 +55,27 @@ void LogicTask::task() {
                 case MODE_SERVO:
                 {
                     send_to_display(DISP_CMD_SET_STATUS, "RX: Servo Ctrl");
-                    // Servo control logic will go here
-                    // For now - visualization for debugging:
-                    char cmd_char = rx_packet.payload[0];
-                    if (cmd_char == '2')      send_to_display(DISP_CMD_SET_MAIN_TEXT, "SERVO UP");
-                    else if (cmd_char == '8') send_to_display(DISP_CMD_SET_MAIN_TEXT, "SERVO DOWN");
-                    else if (cmd_char == '4') send_to_display(DISP_CMD_SET_MAIN_TEXT, "SERVO LEFT");
-                    else if (cmd_char == '6') send_to_display(DISP_CMD_SET_MAIN_TEXT, "SERVO RIGHT");
-                    else                      send_to_display(DISP_CMD_SET_MAIN_TEXT, "---");
+                    
+                    // 1. Отримуємо сирі дані (0..255)
+                    uint8_t val_x = rx_packet.payload[0];
+                    uint8_t val_y = rx_packet.payload[1];
+
+                    // 2. Математика для моторів (залишається!)
+                    // Нам все ще треба перетворити 0..255 у 1000..2000 для таймера
+                    uint32_t pulse_x = 1000 + ((uint32_t)val_x * 1000 / 255);
+                    uint32_t pulse_y = 1000 + ((uint32_t)val_y * 1000 / 255);
+
+                    // 3. Крутимо мотори
+                    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, pulse_x);
+                    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, pulse_y);
+
+                    // 4. Візуалізація (ЗМІНЕНО)
+                    // Виводимо вхідні байти, а не мікросекунди.
+                    // Формат: "X:127 Y:127" (влізе ідеально)
+                    char buf[32];
+                    snprintf(buf, sizeof(buf), "X:%3d Y:%3d", val_x, val_y);
+                    send_to_display(DISP_CMD_SET_MAIN_TEXT, buf);
+                    
                     break;
                 }
                 

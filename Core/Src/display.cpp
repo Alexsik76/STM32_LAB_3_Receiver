@@ -85,14 +85,20 @@ void MyDisplay::task(void)
             switch (msg.command)
             {
                 case DISP_CMD_SET_STATUS:
-                    this->set_status_text(msg.text);
-                    needs_redraw = true;
+                    if (strncmp(this->status_text, msg.text, sizeof(this->status_text)) != 0)
+                    {
+                        this->set_status_text(msg.text);
+                        needs_redraw = true;
+                    }
                     break;
 
                 case DISP_CMD_SET_MAIN_TEXT:
-                    this->set_main_text(msg.text);
-                    this->current_key = 0;
-                    needs_redraw = true;
+                    if (strncmp(this->main_text, msg.text, sizeof(this->main_text)) != 0)
+                    {
+                        this->set_main_text(msg.text);
+                        this->current_key = 0; // Знищуємо конкурента
+                        needs_redraw = true;
+                    }
                     break;
                     
                 case DISP_CMD_SHOW_KEY:

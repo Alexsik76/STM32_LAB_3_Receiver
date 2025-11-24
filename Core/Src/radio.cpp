@@ -76,6 +76,7 @@ void MyRadio::task(void)
         // Wait for radio IRQ signal (via semaphore)
         if (osSemaphoreAcquire(radioIrqSemHandle, osWaitForever) == osOK)
         {
+            //  UI_Blink_Once();
             // Check if data is ready in chip buffer
             if (radio.is_data_ready())
             {
