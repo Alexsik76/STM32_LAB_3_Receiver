@@ -185,7 +185,10 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
   {
     // 1. Manually reset the HAL state to HAL_I2C_STATE_READY.
     // This is our "elegant fix" to clear the HAL_BUSY state.
+    // Protected with critical section to prevent race conditions.
+    taskENTER_CRITICAL();
     hi2c->State = HAL_I2C_STATE_READY;
+    taskEXIT_CRITICAL();
 
     // 2. Also give the semaphore to unblock the display_task,
     //    so it doesn't get stuck on xSemaphoreTake().

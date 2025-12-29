@@ -11,11 +11,11 @@
 #define RADIO_PAYLOAD_SIZE 32
 
 // System modes (shared between TX and RX)
-typedef enum {
-    MODE_KEYPAD = 0,    // Mode 1: Keypad transmission
-    MODE_SERVO,         // Mode 2: Servo control (2,4,6,8)
-    MODE_AUTO           // Mode 3: Auto text transmission
-} SystemMode_t;
+enum class SystemMode : uint8_t {
+    Keypad = 0,    // Mode 1: Keypad transmission
+    Servo,         // Mode 2: Servo control (2,4,6,8)
+    Auto           // Mode 3: Auto text transmission
+};
 
 // Packet structure
 typedef struct {

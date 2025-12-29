@@ -60,12 +60,15 @@ bool MyDisplay::init()
 
 void MyDisplay::task(void)
 {
-    // Check if setup was called
-    if (this->queueHandle == NULL) {
+    // Check if setup was called with valid handles
+    if (this->queueHandle == NULL || this->i2cSemHandle == NULL) {
         vTaskDelete(NULL);
     }
 
+    // Initialize display hardware
     if (!this->init()) {
+        this->set_status_text("Display FAIL");
+        vTaskDelete(NULL);
     }
 
     DisplayMessage_t msg; 
@@ -96,7 +99,7 @@ void MyDisplay::task(void)
                     if (strncmp(this->main_text, msg.text, sizeof(this->main_text)) != 0)
                     {
                         this->set_main_text(msg.text);
-                        this->current_key = 0; // Знищуємо конкурента
+                        this->current_key = 0; // Clear previous key
                         needs_redraw = true;
                     }
                     break;
@@ -153,15 +156,14 @@ void MyDisplay::update_screen_internal()
         ssd1306_WriteString_Large(str, &Font_11x18, White); 
     }
 
-    // 3. DMA Update
-   
-
+    // 3. DMA Update with synchronization
     ssd1306_UpdateScreenDMA();
     
-    if (this->i2cSemHandle != NULL) {
-        osSemaphoreAcquire(this->i2cSemHandle, 100);
-    } else {
-        osDelay(10);
+    // Wait for I2C DMA transfer completion
+    osStatus_t sem_status = osSemaphoreAcquire(this->i2cSemHandle, 100);
+    if (sem_status != osOK) {
+        // Timeout or error - I2C may be stuck
+        // Future improvement: add error counter and recovery mechanism
     }
     
 }

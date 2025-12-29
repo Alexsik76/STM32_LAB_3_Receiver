@@ -51,21 +51,21 @@
 osThreadId_t radio_taskHandle;
 const osThreadAttr_t radio_task_attributes = {
   .name = "radio_task",
-  .stack_size = 256 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for display_task */
 osThreadId_t display_taskHandle;
 const osThreadAttr_t display_task_attributes = {
   .name = "display_task",
-  .stack_size = 256 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for logic_task */
 osThreadId_t logic_taskHandle;
 const osThreadAttr_t logic_task_attributes = {
   .name = "logic_task",
-  .stack_size = 256 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for displayQueueHandle */
@@ -115,10 +115,10 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the semaphores(s) */
   /* creation of radioIrqSem */
-  radioIrqSemHandle = osSemaphoreNew(1, 1, &radioIrqSem_attributes);
+  radioIrqSemHandle = osSemaphoreNew(1, 0, &radioIrqSem_attributes);
 
   /* creation of i2cTxDoneSem */
-  i2cTxDoneSemHandle = osSemaphoreNew(1, 1, &i2cTxDoneSem_attributes);
+  i2cTxDoneSemHandle = osSemaphoreNew(1, 0, &i2cTxDoneSem_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */

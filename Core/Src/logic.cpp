@@ -44,7 +44,7 @@ void LogicTask::task() {
             // Parse mode and decide what to display (MVC: Controller logic)
             switch (rx_packet.mode) {
                 
-                case MODE_KEYPAD:
+                case static_cast<uint8_t>(SystemMode::Keypad):
                     send_to_display(DISP_CMD_SET_STATUS, "RX: Mode Keypad");
                     send_to_display(DISP_CMD_SET_MAIN_TEXT, "");
                     if (rx_packet.payload[0] != 0) {
@@ -52,33 +52,31 @@ void LogicTask::task() {
                     }
                     break;
 
-                case MODE_SERVO:
+                case static_cast<uint8_t>(SystemMode::Servo):
                 {
                     send_to_display(DISP_CMD_SET_STATUS, "RX: Servo Ctrl");
                     
-                    // 1. Отримуємо сирі дані (0..255)
+                    // 1. Read raw joystick data (0..255 from transmitter)
                     uint8_t val_x = rx_packet.payload[0];
                     uint8_t val_y = rx_packet.payload[1];
 
-                    int16_t trim_x = 0;  // Спробуй підібрати експериментально
-                    int16_t trim_y = 0;
+                    // 2. Convert 0..255 range to 1000..2000 microseconds for servo PWM
+                    uint32_t pulse_x = SERVO_MIN_PULSE_US + 
+                        ((uint32_t)val_x * (SERVO_MAX_PULSE_US - SERVO_MIN_PULSE_US) / 255) + SERVO_TRIM_X;
+                    uint32_t pulse_y = SERVO_MIN_PULSE_US + 
+                        ((uint32_t)val_y * (SERVO_MAX_PULSE_US - SERVO_MIN_PULSE_US) / 255) + SERVO_TRIM_Y;
 
-                    // 2. Математика для моторів (залишається!)
-                    // Нам все ще треба перетворити 0..255 у 1000..2000 для таймера
-                    uint32_t pulse_x = 1000 + ((uint32_t)val_x * 1000 / 255) + trim_x;
-                    uint32_t pulse_y = 1000 + ((uint32_t)val_y * 1000 / 255) + trim_y;
-
-                    if (pulse_x < 500) pulse_x = 500;
-                    if (pulse_x > 2500) pulse_x = 2500;
-                    if (pulse_y < 500) pulse_y = 500;
-                    if (pulse_y > 2500) pulse_y = 2500;
-                    // 3. Крутимо мотори
+                    // 3. Apply safety limits to prevent servo damage
+                    if (pulse_x < SERVO_SAFE_MIN_US) pulse_x = SERVO_SAFE_MIN_US;
+                    if (pulse_x > SERVO_SAFE_MAX_US) pulse_x = SERVO_SAFE_MAX_US;
+                    if (pulse_y < SERVO_SAFE_MIN_US) pulse_y = SERVO_SAFE_MIN_US;
+                    if (pulse_y > SERVO_SAFE_MAX_US) pulse_y = SERVO_SAFE_MAX_US;
+                    
+                    // 4. Update servo positions via PWM timer
                     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, pulse_x);
                     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, pulse_y);
 
-                    // 4. Візуалізація (ЗМІНЕНО)
-                    // Виводимо вхідні байти, а не мікросекунди.
-                    // Формат: "X:127 Y:127" (влізе ідеально)
+                    // 5. Display raw input values for debugging
                     char buf[32];
                     snprintf(buf, sizeof(buf), "X:%3d Y:%3d", val_x, val_y);
                     send_to_display(DISP_CMD_SET_MAIN_TEXT, buf);
@@ -86,7 +84,7 @@ void LogicTask::task() {
                     break;
                 }
                 
-                case MODE_AUTO:
+                case static_cast<uint8_t>(SystemMode::Auto):
                     send_to_display(DISP_CMD_SET_STATUS, "RX: Auto Text");
                     // Pass entire string to screen
                     send_to_display(DISP_CMD_SET_MAIN_TEXT, rx_packet.payload);
